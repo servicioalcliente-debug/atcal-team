@@ -90,9 +90,9 @@ class BitrixService:
             ]
 
     def find_or_create_contact(self, first_name: str, last_name: str, email: str, phone: str = "", doc: str = ""):
-        """Busca un contacto existente por email; si no existe, lo crea."""
-        first_name = (first_name or "").strip()
-        last_name = (last_name or "").strip()
+        """Busca un contacto existente por email; si no existe, lo crea con campos válidos."""
+        first_name = (first_name or "Sin Nombre").strip()
+        last_name = (last_name or ".").strip()
         email = (email or "").strip().lower()
 
         if email:
@@ -106,22 +106,29 @@ class BitrixService:
             except Exception as e:
                 logger.warning(f"Error buscando contacto: {e}")
 
+        # Teléfono obligatorio en Bitrix24 de ATCAL
+        valid_phone = phone.strip() if (phone and len(str(phone).strip()) >= 7) else "3000000000"
+
         fields = {
             "NAME": first_name,
-            "LAST_NAME": last_name,
+            "SECOND_NAME": ".",
+            "LAST_NAME": last_name if last_name else ".",
             "OPENED": "Y",
             "TYPE_ID": "CLIENT",
-            "SOURCE_ID": "WEB"
+            "SOURCE_ID": "WEB",
+            "PHONE": [{"VALUE": valid_phone, "VALUE_TYPE": "WORK"}]
         }
         if email:
             fields["EMAIL"] = [{"VALUE": email, "VALUE_TYPE": "WORK"}]
-        if phone:
-            fields["PHONE"] = [{"VALUE": phone, "VALUE_TYPE": "WORK"}]
         if doc:
             fields["COMMENTS"] = f"Identificación: {doc}"
 
-        new_contact_id = self._call("crm.contact.add", {"fields": fields})
-        return int(new_contact_id)
+        try:
+            new_contact_id = self._call("crm.contact.add", {"fields": fields})
+            return int(new_contact_id)
+        except Exception as e:
+            logger.warning(f"Error al crear contacto (se continuará con la negociación): {e}")
+            return None
 
     def create_deal(self, title: str, contact_id: int = None, category_id: int = 99, stage_id: str = "C99:NEW", comments: str = "", custom_fields: dict = None):
         """Crea una negociación (Deal) en Bitrix24."""
