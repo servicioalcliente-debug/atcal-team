@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Envío Masivo de Credenciales | ATCAL - TEAM</title>
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col" x-data="credentialApp()" x-init="init()">
+
+  <!-- HEADER -->
+  <header class="bg-gradient-to-r from-brand-900 via-brand-800 to-sky-900 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="bg-white/10 p-2.5 rounded-xl border border-white/20 shadow-inner flex items-center justify-center">
+          <i class="fa-solid fa-paper-plane text-2xl text-sky-300"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="bg-sky-400 text-brand-900 text-xs font-black px-2 py-0.5 rounded tracking-wider uppercase">ATCAL</span>
+            <span class="text-sky-300 font-light">×</span>
+            <span class="bg-emerald-500 text-white text-xs font-black px-2 py-0.5 rounded tracking-wider uppercase">TEAM</span>
+          </div>
+          <h1 class="text-lg sm:text-xl font-bold tracking-tight">Envío Masivo de Credenciales & Bitrix24</h1>
+        </div>
+      </div>
+
+      <!-- STATUS BADGE -->
+      <div class="flex items-center space-x-3 text-xs sm:text-sm">
+        <div class="px-3 py-1.5 rounded-full flex items-center space-x-2 border" 
+             :class="bitrixConnected ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40' : 'bg-amber-500/20 text-amber-200 border-amber-400/40'">
+          <span class="w-2 h-2 rounded-full animate-ping" :class="bitrixConnected ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+          <span x-text="bitrixConnected ? 'Bitrix24 Conectado (TEAM)' : 'Bitrix24 Pendiente'"></span>
+        </div>
+        <div class="px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-slate-200 flex items-center space-x-1.5">
+          <i class="fa-solid fa-user-check text-sky-300"></i>
+          <span><strong x-text="selectedRows.length">0</strong> seleccionados de <strong x-text="rows.length">0</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS NAVIGATION (3 CLEAN STEPS) -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/10 flex overflow-x-auto space-x-1 sm:space-x-4 pt-1">
+      <button @click="activeTab = 'data'" :class="activeTab === 'data' ? 'border-sky-400 text-white font-bold bg-white/10' : 'border-transparent text-slate-300 hover:text-white'" class="py-2.5 px-4 text-sm border-b-2 rounded-t-lg transition flex items-center gap-2 whitespace-nowrap">
+        <i class="fa-solid fa-file-excel"></i>
+        <span>1. Archivo y Destinatarios</span>
+      </button>
+      <button @click="activeTab = 'bitrix'" :class="activeTab === 'bitrix' ? 'border-sky-400 text-white font-bold bg-white/10' : 'border-transparent text-slate-300 hover:text-white'" class="py-2.5 px-4 text-sm border-b-2 rounded-t-lg transition flex items-center gap-2 whitespace-nowrap">
+        <i class="fa-solid fa-sliders"></i>
+        <span>2. Configuración Bitrix24 & Robot</span>
+      </button>
+      <button @click="activeTab = 'send'" :class="activeTab === 'send' ? 'border-sky-400 text-white font-bold bg-white/10' : 'border-transparent text-slate-300 hover:text-white'" class="py-2.5 px-4 text-sm border-b-2 rounded-t-lg transition flex items-center gap-2 whitespace-nowrap">
+        <i class="fa-solid fa-rocket"></i>
+        <span>3. Ejecutar Envío (<span x-text="selectedRows.length"></span>)</span>
+        <span x-show="sendState.is_running" class="ml-1 w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+
+    <!-- TAB 1: DATA & FILE UPLOAD -->
+    <div x-show="activeTab === 'data'" x-transition class="space-y-6">
+      
+      <!-- Top banner & Dropzone -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Dropzone Card -->
+        <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-cloud-arrow-up text-brand-600"></i>
+              Cargar Archivo de Contratistas (Excel o CSV)
+            </h2>
+            <div class="flex items-center gap-2">
+              <button @click="isManualModalOpen = true" class="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-keyboard text-brand-600"></i>
+                Ingresar Manualmente
+              </button>
+              <button x-show="rows.length > 0" @click="clearList()" class="px-3 py-1.5 text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-trash-can text-rose-600"></i>
+                Limpiar Lista
+              </button>
+            </div>
+          </div>
+          <p class="text-xs text-slate-500 mb-4">
+            Arrastra el archivo Excel o CSV de las personas que van a recibir credenciales en este lote.
+          </p>
+
+          <div 
+            @dragover.prevent="isDragging = true" 
+            @dragleave.prevent="isDragging = false" 
+            @drop.prevent="handleDrop($event)"
+            :class="isDragging ? 'border-brand-500 bg-brand-50' : 'border-slate-300 hover:border-brand-400 bg-slate-50'"
+            class="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center relative">
+            <input type="file" @change="handleFileSelect($event)" accept=".csv,.xlsx,.xls" class="absolute inset-0 opacity-0 cursor-pointer">
+            <div class="w-12 h-12 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center mb-3">
+              <i class="fa-solid fa-file-excel text-2xl"></i>
+            </div>
+            <p class="text-sm font-semibold text-slate-700">Arrastra aquí el archivo Excel o haz clic para seleccionarlo</p>
+            <p class="text-xs text-slate-400 mt-1">Soporta: .xlsx, .xls, .csv (Moodle o formato estándar)</p>
+            <div x-show="fileName" class="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-brand-100 text-brand-800 rounded-lg text-xs font-medium">
+              <i class="fa-solid fa-check-circle text-emerald-600"></i>
+              <span x-text="fileName"></span>
+            </div>
+          </div>
+
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span class="text-slate-400">Detecta automáticamente: Nombres, Correo, Usuario (cédula) y Contraseña.</span>
+            <button @click="loadContratistasFile()" class="text-slate-500 hover:text-brand-600 text-[11px] underline">
+              Cargar muestra 20261027_Contratistas.csv
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Summary Stats -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-sky-400">Destinatarios Activos</span>
+            <h3 class="text-2xl font-bold mt-1" x-text="selectedRows.length + ' Seleccionados'">0 Seleccionados</h3>
+            <p class="text-xs text-slate-300 mt-2">
+              Se creará la negociación en el embudo <strong>TEAM</strong> y el robot de Bitrix24 les enviará el correo con sus credenciales.
+            </p>
+
+            <div class="mt-5 space-y-2.5 text-xs">
+              <div class="flex justify-between py-1.5 border-b border-white/10">
+                <span class="text-slate-400">Total en lista:</span>
+                <span class="font-semibold text-white" x-text="rows.length">0</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-white/10">
+                <span class="text-slate-400">Seleccionados para envío:</span>
+                <span class="font-semibold text-emerald-400" x-text="selectedRows.length">0</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-white/10">
+                <span class="text-slate-400">Correos válidos:</span>
+                <span class="font-semibold text-sky-300" x-text="countValidEmails()">0</span>
+              </div>
+            </div>
+          </div>
+
+          <button @click="activeTab = 'send'" :disabled="selectedRows.length === 0" class="mt-6 w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-900 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2">
+            <span>Ir a Ejecutar Envío</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div>
+              <h3 class="font-bold text-slate-800 text-sm sm:text-base">Lista de Personas para Crear Negociación</h3>
+              <p class="text-xs text-slate-500">Marca o desmarca las casillas de las personas que recibirán credenciales.</p>
+            </div>
+          </div>
+
+          <!-- Actions & Search -->
+          <div class="flex flex-wrap items-center gap-3">
+            <button @click="selectAll(true)" class="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition">
+              Seleccionar Todos
+            </button>
+            <button @click="selectAll(false)" class="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition">
+              Deseleccionar Todos
+            </button>
+
+            <!-- Search box -->
+            <div class="relative w-full sm:w-64">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+              <input type="text" x-model="searchQuery" placeholder="Buscar por nombre, correo o cédula..." class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-brand-500">
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto max-h-[500px] custom-scrollbar">
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead class="bg-slate-50 text-slate-700 uppercase font-bold sticky top-0 border-b border-slate-200 z-10">
+              <tr>
+                <th class="px-4 py-3 w-10 text-center">
+                  <input type="checkbox" :checked="isAllSelected()" @change="toggleSelectAll($event)" class="rounded text-brand-600 focus:ring-brand-500 cursor-pointer">
+                </th>
+                <th class="px-3 py-3 w-12 text-center">#</th>
+                <th class="px-4 py-3">Nombre Completo</th>
+                <th class="px-4 py-3">Correo Electrónico</th>
+                <th class="px-4 py-3">Usuario (Documento)</th>
+                <th class="px-4 py-3">Contraseña Asignada</th>
+                <th class="px-4 py-3">Curso</th>
+                <th class="px-3 py-3 text-center">Quitar</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <template x-for="(r, idx) in filteredRows" :key="r._id">
+                <tr class="hover:bg-slate-50 transition" :class="isSelected(r._id) ? 'bg-sky-50/40' : ''">
+                  <td class="px-4 py-2.5 text-center">
+                    <input type="checkbox" :checked="isSelected(r._id)" @change="toggleRow(r._id)" class="rounded text-brand-600 focus:ring-brand-500 cursor-pointer">
+                  </td>
+                  <td class="px-3 py-2.5 text-center font-mono text-slate-400" x-text="r._id"></td>
+                  <td class="px-4 py-2.5 font-semibold text-slate-800" x-text="r.nombre_completo"></td>
+                  <td class="px-4 py-2.5 font-mono text-brand-600" x-text="r.email"></td>
+                  <td class="px-4 py-2.5 font-mono text-slate-700" x-text="r.username || r.documento"></td>
+                  <td class="px-4 py-2.5 font-mono bg-slate-50 text-slate-800 font-bold" x-text="r.password"></td>
+                  <td class="px-4 py-2.5 text-slate-600">
+                    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px]" x-text="r.curso || 'Inducción TEAM'"></span>
+                  </td>
+                  <td class="px-3 py-2.5 text-center">
+                    <button @click="removeRow(r._id)" class="px-2 py-1 text-xs font-medium text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition" title="Quitar de la lista">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="rows.length === 0">
+                <td colspan="8" class="py-12 text-center text-slate-400">
+                  <i class="fa-solid fa-file-arrow-up text-4xl mb-3 text-slate-300"></i>
+                  <p class="font-semibold text-slate-600">No hay personas en la lista en este momento.</p>
+                  <p class="text-xs text-slate-400 mt-1">Arrastra un archivo Excel arriba o haz clic en "Ingresar Manualmente".</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: BITRIX24 & ROBOT CONFIGURATION -->
+    <div x-show="activeTab === 'bitrix'" x-transition class="space-y-6 max-w-4xl mx-auto">
+      
+      <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-brand-600"></i>
+            Conexión con Bitrix24 & Automatización
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            Configuración del embudo TEAM y del robot de envío automático de correos.
+          </p>
+        </div>
+
+        <!-- Webhook URL input -->
+        <div class="space-y-2">
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+            URL del Webhook Entrante de Bitrix24
+          </label>
+          <div class="flex gap-2">
+            <input type="text" x-model="config.bitrix_webhook" placeholder="https://atcalsas.bitrix24.es/rest/..." class="flex-grow px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500 font-mono">
+            <button @click="testBitrixConnection()" :disabled="testingBitrix" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 whitespace-nowrap">
+              <i class="fa-solid fa-satellite-dish" :class="testingBitrix ? 'animate-spin' : ''"></i>
+              <span x-text="testingBitrix ? 'Probando...' : 'Probar Conexión'"></span>
+            </button>
+          </div>
+          
+          <div x-show="testMessage" class="p-3 rounded-xl text-xs flex items-center gap-2" :class="bitrixConnected ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'">
+            <i class="fa-solid" :class="bitrixConnected ? 'fa-circle-check text-emerald-600' : 'fa-circle-exclamation text-rose-600'"></i>
+            <span x-text="testMessage"></span>
+          </div>
+        </div>
+
+        <!-- CRM Funnel & Stage -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Embudo de Ventas (Pipeline)</label>
+            <select x-model="config.bitrix_category_id" @change="loadStagesForCategory()" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500 font-semibold text-slate-800">
+              <template x-for="cat in bitrixCategories" :key="cat.ID">
+                <option :value="cat.ID" x-text="cat.NAME + ' (ID: ' + cat.ID + ')'"></option>
+              </template>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Etapa de Creación Inicial</label>
+            <select x-model="config.bitrix_stage_id" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500 font-mono">
+              <template x-for="stg in bitrixStages" :key="stg.STATUS_ID">
+                <option :value="stg.STATUS_ID" x-text="stg.NAME + ' [' + stg.STATUS_ID + ']'"></option>
+              </template>
+            </select>
+          </div>
+        </div>
+
+        <!-- Transición automática para disparar el Robot -->
+        <div class="p-4 bg-sky-50 rounded-xl border border-sky-200 space-y-2">
+          <label class="flex items-center gap-2.5 cursor-pointer font-bold text-xs text-sky-900">
+            <input type="checkbox" x-model="config.auto_move_stage" class="rounded text-brand-600 focus:ring-brand-500 h-4 w-4">
+            <span>Mover automáticamente a la siguiente etapa (Disparar Robot de Correo de Bitrix24)</span>
+          </label>
+          <div x-show="config.auto_move_stage" class="pl-6 pt-1 text-xs text-sky-800 flex flex-wrap items-center gap-2">
+            <span>Pasar de inmediato a:</span>
+            <select x-model="config.target_stage_id" class="px-2 py-1.5 rounded-lg border border-sky-300 bg-white font-mono text-xs font-semibold text-slate-800">
+              <template x-for="stg in bitrixStages" :key="stg.STATUS_ID">
+                <option :value="stg.STATUS_ID" x-text="stg.NAME + ' [' + stg.STATUS_ID + ']'"></option>
+              </template>
+            </select>
+          </div>
+          <p class="text-[11px] text-sky-700 pl-6 leading-relaxed">
+            La app crea la negociación en <em>En desarrollo</em> y la traslada automáticamente a <strong>NOTIFICADO</strong>. Así Bitrix24 ejecuta su robot con la plantilla que ya tienes configurada en Bitrix sin tener que arrastrarla manualmente.
+          </p>
+        </div>
+
+        <!-- Deal title formula -->
+        <div class="pt-4 border-t border-slate-200">
+          <label class="block text-xs font-bold text-slate-700 mb-1">Título de la Negociación en Bitrix24</label>
+          <input type="text" x-model="config.deal_title_template" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500 font-medium">
+          <p class="text-[11px] text-slate-400 mt-1">Variables: {nombre_completo}, {documento}, {curso}, {usuario}</p>
+        </div>
+
+        <div class="flex justify-end pt-3">
+          <button @click="saveConfiguration(true)" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2">
+            <i class="fa-solid fa-check"></i>
+            Guardar Configuración
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: SEND EXECUTION CENTER -->
+    <div x-show="activeTab === 'send'" x-transition class="space-y-6">
+      
+      <!-- Top Control Card -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-paper-plane text-brand-600"></i>
+              Centro de Envío Masivo
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-500">
+              Se crearán las negociaciones y se activará el robot de Bitrix24 para los <strong class="text-brand-700 text-sm" x-text="selectedRows.length">0</strong> seleccionados.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button 
+              @click="startSending()" 
+              :disabled="sendState.is_running || selectedRows.length === 0" 
+              class="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm shadow-md hover:shadow-lg transition flex items-center gap-2.5">
+              <i class="fa-solid fa-play" :class="sendState.is_running ? 'fa-spinner animate-spin' : ''"></i>
+              <span x-text="sendState.is_running ? 'Procesando en Bitrix...' : 'Iniciar Envío (' + selectedRows.length + ')'"></span>
+            </button>
+
+            <button 
+              @click="stopSending()" 
+              x-show="sendState.is_running" 
+              class="px-4 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition flex items-center gap-2">
+              <i class="fa-solid fa-stop"></i>
+              Detener
+            </button>
+
+            <a 
+              href="/api/export-report" 
+              x-show="sendState.progress > 0" 
+              class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition flex items-center gap-2 border border-slate-300">
+              <i class="fa-solid fa-download text-slate-600"></i>
+              Descargar Reporte CSV
+            </a>
+          </div>
+        </div>
+
+        <!-- Progress Bar & Counters -->
+        <div class="mt-6 space-y-2">
+          <div class="flex justify-between items-center text-xs font-semibold text-slate-600">
+            <span>Progreso del lote:</span>
+            <span><strong x-text="sendState.progress">0</strong> de <span x-text="sendState.total || selectedRows.length">0</span> (<span x-text="calculatePercent()">0</span>%)</span>
+          </div>
+
+          <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+            <div class="h-full bg-gradient-to-r from-brand-500 to-emerald-500 transition-all duration-300" :style="'width: ' + calculatePercent() + '%'"></div>
+          </div>
+
+          <!-- Counter Cards -->
+          <div class="grid grid-cols-3 gap-3 pt-3">
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+              <span class="text-slate-400 text-[11px] block uppercase font-bold">Total a Procesar</span>
+              <span class="text-xl font-bold text-slate-800" x-text="sendState.total || selectedRows.length">0</span>
+            </div>
+            <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-center">
+              <span class="text-emerald-700 text-[11px] block uppercase font-bold">Negociaciones Creadas</span>
+              <span class="text-xl font-bold text-emerald-700" x-text="sendState.success_count">0</span>
+            </div>
+            <div class="bg-rose-50 p-3 rounded-xl border border-rose-200 text-center">
+              <span class="text-rose-700 text-[11px] block uppercase font-bold">Errores / Fallidos</span>
+              <span class="text-xl font-bold text-rose-700" x-text="sendState.error_count">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Terminal Console Log -->
+      <div class="bg-slate-900 rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 text-slate-200 font-mono text-xs">
+        <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+            <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+            <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+            <span class="text-slate-400 ml-2 font-sans font-semibold">Registro de Actividad con Bitrix24</span>
+          </div>
+          <button @click="sendState.logs = []" class="text-slate-400 hover:text-slate-200 text-[11px] font-sans">
+            <i class="fa-solid fa-trash-can mr-1"></i> Limpiar Registro
+          </button>
+        </div>
+
+        <div id="logContainer" class="h-80 overflow-y-auto space-y-1.5 custom-scrollbar pr-2">
+          <template x-for="(log, idx) in sendState.logs" :key="idx">
+            <div class="flex items-start gap-2.5">
+              <span class="text-slate-500 select-none text-[10px]" x-text="log.time"></span>
+              <span 
+                class="px-1.5 py-0.2 rounded text-[10px] uppercase font-bold tracking-wider" 
+                :class="{
+                  'bg-emerald-950 text-emerald-400 border border-emerald-800': log.status === 'success',
+                  'bg-rose-950 text-rose-400 border border-rose-800': log.status === 'error',
+                  'bg-amber-950 text-amber-400 border border-amber-800': log.status === 'warning',
+                  'bg-slate-800 text-slate-300': log.status === 'info'
+                }" 
+                x-text="log.status">
+              </span>
+              <span class="text-slate-300 break-all leading-tight" x-text="log.message"></span>
+            </div>
+          </template>
+          <div x-show="sendState.logs.length === 0" class="text-slate-600 text-center py-10 font-sans">
+            Presiona "Iniciar Envío" para procesar las personas seleccionadas hacia Bitrix24.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: MANUAL DATA ENTRY -->
+  <div x-show="isManualModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div @click.away="isManualModalOpen = false" class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+          <i class="fa-solid fa-user-plus text-brand-600"></i>
+          Ingresar Persona Manualmente
+        </h3>
+        <button @click="isManualModalOpen = false" class="text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Nombre Completo</label>
+          <input type="text" x-model="manualForm.nombre_completo" placeholder="Ej: Juan Perez" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Correo Electrónico</label>
+          <input type="email" x-model="manualForm.email" placeholder="Ej: juan.perez@ejemplo.com" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-brand-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Usuario (Cédula)</label>
+            <input type="text" x-model="manualForm.username" placeholder="Ej: 10203040" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-brand-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Contraseña</label>
+            <input type="text" x-model="manualForm.password" placeholder="Ej: Alianza-2026" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Curso / Programa</label>
+          <input type="text" x-model="manualForm.curso" placeholder="Ej: Inducción Contratistas 2026" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t">
+        <button @click="isManualModalOpen = false" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">
+          Cancelar
+        </button>
+        <button @click="addManualContractor()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-semibold">
+          Agregar a la Lista
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT APPLICATION LOGIC -->
+  <script>
+    function credentialApp() {
+      return {
+        activeTab: 'data',
+        isDragging: false,
+        fileName: '',
+        rows: [],
+        selectedRows: [],
+        searchQuery: '',
+        config: {{ config | tojson }},
+        bitrixConnected: false,
+        testingBitrix: false,
+        testMessage: '',
+        bitrixCategories: [{ ID: 99, NAME: 'TEAM' }, { ID: 0, NAME: 'Embudo General' }],
+        bitrixStages: [
+          { STATUS_ID: 'C99:NEW', NAME: 'En desarrollo' },
+          { STATUS_ID: 'C99:EXECUTING', NAME: 'NOTIFICADO' },
+          { STATUS_ID: 'C99:WON', NAME: 'Negociación ganada' }
+        ],
+        sendState: {
+          is_running: false,
+          progress: 0,
+          total: 0,
+          success_count: 0,
+          error_count: 0,
+          logs: []
+        },
+        pollInterval: null,
+        isManualModalOpen: false,
+        manualForm: {
+          nombre_completo: '',
+          email: '',
+          username: '',
+          password: '',
+          curso: 'Inducción Contratistas 2026'
+        },
+
+        async init() {
+          await this.fetchData();
+          if (this.config.bitrix_webhook) {
+            this.testBitrixConnection(false);
+          }
+        },
+
+        async fetchData() {
+          try {
+            const res = await fetch('/api/data');
+            const data = await res.json();
+            this.rows = data.rows || [];
+            this.fileName = data.filename || '';
+            this.selectedRows = this.rows.map(r => r._id);
+          } catch (e) {
+            console.error("Error fetching data:", e);
+          }
+        },
+
+        get filteredRows() {
+          if (!this.searchQuery) return this.rows;
+          const q = this.searchQuery.toLowerCase();
+          return this.rows.filter(r => 
+            (r.nombre_completo || '').toLowerCase().includes(q) ||
+            (r.email || '').toLowerCase().includes(q) ||
+            (r.username || '').toLowerCase().includes(q) ||
+            (r.documento || '').toLowerCase().includes(q)
+          );
+        },
+
+        isSelected(id) {
+          return this.selectedRows.includes(id);
+        },
+
+        toggleRow(id) {
+          if (this.isSelected(id)) {
+            this.selectedRows = this.selectedRows.filter(x => x !== id);
+          } else {
+            this.selectedRows.push(id);
+          }
+        },
+
+        selectAll(flag) {
+          if (flag) {
+            this.selectedRows = this.rows.map(r => r._id);
+          } else {
+            this.selectedRows = [];
+          }
+        },
+
+        isAllSelected() {
+          return this.rows.length > 0 && this.selectedRows.length === this.rows.length;
+        },
+
+        toggleSelectAll(evt) {
+          this.selectAll(evt.target.checked);
+        },
+
+        removeRow(id) {
+          this.rows = this.rows.filter(r => r._id !== id);
+          this.selectedRows = this.selectedRows.filter(x => x !== id);
+        },
+
+        async clearList() {
+          if (confirm("¿Deseas vaciar la lista actual para cargar un archivo nuevo?")) {
+            await fetch('/api/clear-data', { method: 'POST' });
+            this.rows = [];
+            this.selectedRows = [];
+            this.fileName = '';
+          }
+        },
+
+        countValidEmails() {
+          return this.rows.filter(r => r.email && r.email.includes('@')).length;
+        },
+
+        async handleFileSelect(evt) {
+          const file = evt.target.files[0];
+          if (file) await this.uploadFile(file);
+        },
+
+        async handleDrop(evt) {
+          this.isDragging = false;
+          const file = evt.dataTransfer.files[0];
+          if (file) await this.uploadFile(file);
+        },
+
+        async uploadFile(file) {
+          const formData = new FormData();
+          formData.append('file', file);
+          try {
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+              await this.fetchData();
+              alert(`¡Archivo cargado con éxito! Se cargaron ${data.count} personas.`);
+            } else {
+              alert("Error: " + data.message);
+            }
+          } catch (e) {
+            alert("Error al subir archivo: " + e.message);
+          }
+        },
+
+        async loadContratistasFile() {
+          if (confirm("¿Cargar el archivo de muestra 20261027_Contratistas.csv?")) {
+            const res = await fetch('/api/load-default', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+              await this.fetchData();
+            }
+          }
+        },
+
+        async addManualContractor() {
+          if (!this.manualForm.nombre_completo || !this.manualForm.email) {
+            alert("Por favor ingresa al menos el nombre y el correo.");
+            return;
+          }
+          try {
+            const res = await fetch('/api/manual-add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: [this.manualForm] })
+            });
+            const data = await res.json();
+            if (data.success) {
+              await this.fetchData();
+              this.isManualModalOpen = false;
+              this.manualForm = { nombre_completo: '', email: '', username: '', password: '', curso: 'Inducción Contratistas 2026' };
+            }
+          } catch (e) {
+            alert("Error: " + e.message);
+          }
+        },
+
+        async saveConfiguration(showAlert = false) {
+          try {
+            const res = await fetch('/api/config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.config)
+            });
+            const data = await res.json();
+            if (showAlert && data.success) {
+              alert("¡Configuración guardada exitosamente!");
+            }
+          } catch (e) {
+            alert("Error al guardar: " + e.message);
+          }
+        },
+
+        async testBitrixConnection(showAlert = true) {
+          if (!this.config.bitrix_webhook) {
+            if (showAlert) alert("Ingresa la URL del Webhook.");
+            return;
+          }
+          this.testingBitrix = true;
+          this.testMessage = '';
+          try {
+            const res = await fetch('/api/bitrix/test', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ webhook: this.config.bitrix_webhook })
+            });
+            const data = await res.json();
+            this.bitrixConnected = data.success;
+            this.testMessage = data.message;
+            if (data.success) {
+              await this.saveConfiguration(false);
+              await this.loadBitrixPipelines();
+            }
+          } catch (e) {
+            this.bitrixConnected = false;
+            this.testMessage = "Error de conexión: " + e.message;
+          } finally {
+            this.testingBitrix = false;
+          }
+        },
+
+        async loadBitrixPipelines() {
+          try {
+            const res = await fetch('/api/bitrix/pipelines', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                webhook: this.config.bitrix_webhook,
+                category_id: this.config.bitrix_category_id || 99
+              })
+            });
+            const data = await res.json();
+            if (data.success) {
+              if (data.categories && data.categories.length > 0) this.bitrixCategories = data.categories;
+              if (data.stages && data.stages.length > 0) this.bitrixStages = data.stages;
+            }
+          } catch (e) {
+            console.error("Error loading pipelines:", e);
+          }
+        },
+
+        async loadStagesForCategory() {
+          await this.loadBitrixPipelines();
+        },
+
+        calculatePercent() {
+          if (!this.sendState.total) return 0;
+          return Math.round((this.sendState.progress / this.sendState.total) * 100);
+        },
+
+        async startSending() {
+          if (!this.config.bitrix_webhook) {
+            alert("Debes configurar y probar la URL de Webhook de Bitrix24 antes de enviar.");
+            this.activeTab = 'bitrix';
+            return;
+          }
+          if (this.selectedRows.length === 0) {
+            alert("No hay ninguna persona seleccionada con casilla marcada.");
+            return;
+          }
+
+          if (!confirm(`¿Estás seguro de procesar las ${this.selectedRows.length} personas seleccionadas hacia Bitrix24 (Embudo TEAM)?`)) {
+            return;
+          }
+
+          try {
+            const res = await fetch('/api/start-send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                config: this.config,
+                selected_ids: this.selectedRows
+              })
+            });
+            const data = await res.json();
+            if (data.success) {
+              this.startPollingStatus();
+            } else {
+              alert("Error al iniciar: " + data.message);
+            }
+          } catch (e) {
+            alert("Error: " + e.message);
+          }
+        },
+
+        async stopSending() {
+          try {
+            await fetch('/api/stop-send', { method: 'POST' });
+          } catch (e) {
+            console.error(e);
+          }
+        },
+
+        startPollingStatus() {
+          if (this.pollInterval) clearInterval(this.pollInterval);
+          this.pollInterval = setInterval(async () => {
+            try {
+              const res = await fetch('/api/send-status');
+              this.sendState = await res.json();
+              
+              const logEl = document.getElementById('logContainer');
+              if (logEl) logEl.scrollTop = logEl.scrollHeight;
+
+              if (!this.sendState.is_running) {
+                clearInterval(this.pollInterval);
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }, 800);
+        }
+      }
+    }
+  </script>
+</body>
+</html>
