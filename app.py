@@ -56,6 +56,9 @@ def load_config():
         "send_mode": "deal_only", # "deal_only" (robot de etapa) o "deal_and_activity" (email crm)
         "deal_title_template": "Credenciales Inducción - {nombre_completo} ({documento})",
         "create_contact": True,
+        "course_start_date": "",
+        "course_end_date": "",
+        "course_end_time": "23:59",
         "platform_url": "https://campus.atcal.co",
         "email_subject": "Tus credenciales de acceso a la Inducción Corporativa Contratistas 2026 - TEAM / ATCAL",
         "email_body_template": """<p>Estimado/a <strong>{nombre_completo}</strong>,</p>
@@ -378,12 +381,30 @@ def process_batch_send(rows, config):
 
             # 2. Negociación (Deal) en Bitrix24
             deal_comments = f"Credenciales Inducción:\nUsuario: {user}\nContraseña: {pwd}\nCurso: {curso}\nCorreo: {email}\nDocumento: {doc}"
+            
+            start_date_val = config.get("course_start_date", "").strip()
+            end_date_val = config.get("course_end_date", "").strip()
+            end_time_val = config.get("course_end_time", "23:59").strip() or "23:59"
+
             custom_deal_fields = {
                 "UF_CRM_5C968B0EE4E78": doc,
                 "UF_CRM_5CED6B38B0BCF": email,
                 "UF_CRM_5D5446B2933A3": row.get("lastname", ""),
                 "UF_CRM_1754416758": curso
             }
+
+            # Si el usuario configuró fechas del curso, se envían a los campos de fecha de Bitrix24
+            if start_date_val:
+                # Formato ISO para Bitrix24 datetime: YYYY-MM-DDTHH:MM:SS+03:00 o YYYY-MM-DD
+                custom_deal_fields["UF_CRM_66CC906602912"] = f"{start_date_val}T00:00:00+03:00"
+                custom_deal_fields["BEGINDATE"] = start_date_val
+                deal_comments += f"\nFecha Inicio Curso: {start_date_val}"
+
+            if end_date_val:
+                custom_deal_fields["UF_CRM_66CC90661E562"] = f"{end_date_val}T{end_time_val}:00+03:00"
+                custom_deal_fields["CLOSEDATE"] = end_date_val
+                deal_comments += f"\nFecha Fin Curso: {end_date_val} {end_time_val} hrs"
+
             deal_id = service.create_deal(
                 title=deal_title,
                 contact_id=contact_id,
