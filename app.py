@@ -59,6 +59,7 @@ def load_config():
         "course_start_date": "",
         "course_end_date": "",
         "course_end_time": "23:59",
+        "course_title": "Inducción Corporativa para Contratistas 2026",
         "platform_url": "https://campus.atcal.co",
         "email_subject": "Tus credenciales de acceso a la Inducción Corporativa Contratistas 2026 - TEAM / ATCAL",
         "email_body_template": """<p>Estimado/a <strong>{nombre_completo}</strong>,</p>
@@ -343,7 +344,10 @@ def process_batch_send(rows, config):
         email = row.get("email", "").strip()
         user = row.get("username", "")
         pwd = row.get("password", "")
-        curso = row.get("curso", "")
+        
+        # Curso: Si en la app se definió un título de curso global, lo priorizamos o usamos el de la fila
+        course_title_cfg = (config.get("course_title") or "").strip()
+        curso = course_title_cfg if course_title_cfg else (row.get("curso", "") or "Inducción TEAM")
 
         deal_title = render_template_str(config.get("deal_title_template", "Credenciales Inducción - {nombre_completo}"), row, config)
         subject = render_template_str(config.get("email_subject", "Tus credenciales"), row, config)
@@ -390,7 +394,9 @@ def process_batch_send(rows, config):
                 "UF_CRM_5C968B0EE4E78": doc,
                 "UF_CRM_5CED6B38B0BCF": email,
                 "UF_CRM_5D5446B2933A3": row.get("lastname", ""),
-                "UF_CRM_1754416758": curso
+                "UF_CRM_1754416758": curso,
+                "ADDITIONAL_INFO": curso,
+                "SOURCE_DESCRIPTION": curso
             }
 
             # Si el usuario configuró fechas del curso, se envían a los campos de fecha de Bitrix24
