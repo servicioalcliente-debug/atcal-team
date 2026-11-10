@@ -145,8 +145,7 @@ class BitrixService:
 
         if custom_fields and isinstance(custom_fields, dict):
             for k, v in custom_fields.items():
-                if k.startswith("UF_CRM_"):
-                    fields[k] = v
+                fields[k] = v
 
         deal_id = self._call("crm.deal.add", {"fields": fields})
         return int(deal_id)
