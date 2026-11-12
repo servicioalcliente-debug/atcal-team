@@ -150,6 +150,63 @@ class BitrixService:
         deal_id = self._call("crm.deal.add", {"fields": fields})
         return int(deal_id)
 
+    def find_deal_by_doc_or_email(self, doc: str = "", email: str = "", category_id: int = 99):
+        """Busca una negociación existente en el embudo por documento o por correo electrónico."""
+        doc = (doc or "").strip()
+        email = (email or "").strip().lower()
+
+        # 1. Búsqueda por documento en campo personalizado
+        if doc:
+            try:
+                res = self._call("crm.deal.list", {
+                    "filter": {
+                        "CATEGORY_ID": int(category_id),
+                        "UF_CRM_5C968B0EE4E78": doc
+                    },
+                    "select": ["ID", "TITLE", "STAGE_ID", "CONTACT_ID", "UF_CRM_5C968B0EE4E78", "UF_CRM_5CED6B38B0BCF"],
+                    "order": {"ID": "DESC"}
+                })
+                if res and len(res) > 0:
+                    return res[0]
+            except Exception as e:
+                logger.warning(f"Error buscando negociación por documento: {e}")
+
+        # 2. Búsqueda por correo electrónico en campo personalizado
+        if email:
+            try:
+                res = self._call("crm.deal.list", {
+                    "filter": {
+                        "CATEGORY_ID": int(category_id),
+                        "UF_CRM_5CED6B38B0BCF": email
+                    },
+                    "select": ["ID", "TITLE", "STAGE_ID", "CONTACT_ID", "UF_CRM_5C968B0EE4E78", "UF_CRM_5CED6B38B0BCF"],
+                    "order": {"ID": "DESC"}
+                })
+                if res and len(res) > 0:
+                    return res[0]
+            except Exception as e:
+                logger.warning(f"Error buscando negociación por correo: {e}")
+
+        return None
+
+    def update_deal_fields_and_stage(self, deal_id: int, stage_id: str = None, comments: str = None, custom_fields: dict = None):
+        """Actualiza campos y/o etapa de una negociación existente."""
+        fields = {}
+        if stage_id:
+            fields["STAGE_ID"] = stage_id
+        if comments:
+            fields["COMMENTS"] = comments
+        if custom_fields and isinstance(custom_fields, dict):
+            for k, v in custom_fields.items():
+                fields[k] = v
+
+        if fields:
+            return self._call("crm.deal.update", {
+                "id": int(deal_id),
+                "fields": fields
+            })
+        return True
+
     def update_deal_stage(self, deal_id: int, stage_id: str):
         """Mueve la negociación a otra etapa para disparar los robots de cambio de etapa de Bitrix24."""
         return self._call("crm.deal.update", {
