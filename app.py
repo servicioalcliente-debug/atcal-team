@@ -56,8 +56,8 @@ def load_config():
     return {
         "bitrix_webhook": "https://atcalsas.bitrix24.es/rest/16923/m3t5crhf7mrq5tl0/",
         "bitrix_category_id": 99,
-        "bitrix_stage_id": "C99:NEW",
-        "auto_move_stage": True,
+        "bitrix_stage_id": "C99:EXECUTING",
+        "auto_move_stage": False,
         "target_stage_id": "C99:EXECUTING",
         "reminder_stage_id": "C99:NEW",
         "initial_stage_id": "C99:EXECUTING",
@@ -475,17 +475,17 @@ def stop_send():
     return jsonify({"success": True, "message": "Detención solicitada."})
 
 def process_batch_initial(rows, config):
-    """Procesa el lote para Inscripción Inicial (Crea Deal y lo pasa a NOTIFICADO para disparar robot de bienvenida)."""
+    """Procesa el lote para Inscripción Inicial: Crea el Deal directamente en NOTIFICADO (C99:EXECUTING)."""
     global SEND_STATE
     webhook = config.get("bitrix_webhook")
     service = BitrixService(webhook)
 
-    stage_id = config.get("bitrix_stage_id", "C99:NEW")
+    # La etapa de inscripción inicial es NOTIFICADO (C99:EXECUTING).
+    # NUNCA debe crearse en C99:NEW (Recordatorio) para evitar que se dispare el correo de recordatorio.
+    stage_id = "C99:EXECUTING"
     category_id = int(config.get("bitrix_category_id", 99))
     send_mode = config.get("send_mode", "deal_only")
     create_contact_flag = config.get("create_contact", True)
-    target_stage = config.get("target_stage_id", "C99:EXECUTING")
-    auto_move = config.get("auto_move_stage", True)
 
     total = len(rows)
     course_title_cfg = (config.get("course_title") or "").strip()
@@ -565,6 +565,7 @@ def process_batch_initial(rows, config):
                 custom_deal_fields["CLOSEDATE"] = end_date_val
                 deal_comments += f"\nFecha Fin Curso: {end_date_val} {end_time_val} hrs"
 
+            # Crear directamente en NOTIFICADO (C99:EXECUTING)
             deal_id = service.create_deal(
                 title=deal_title,
                 contact_id=contact_id,
@@ -575,11 +576,7 @@ def process_batch_initial(rows, config):
             )
             report_entry["deal_id"] = deal_id
 
-            activity_info = ""
-            if auto_move and target_stage and target_stage != stage_id:
-                time.sleep(0.4)
-                service.update_deal_stage(deal_id, target_stage)
-                activity_info += " ➔ Movido a NOTIFICADO (Robot activado)"
+            activity_info = " ➔ Creado en NOTIFICADO (Robot de Bienvenida activado)"
 
             if send_mode == "deal_and_activity":
                 act_id = service.send_email_activity(
@@ -592,7 +589,7 @@ def process_batch_initial(rows, config):
                 activity_info += f" (Correo CRM #{act_id})"
 
             report_entry["status"] = "success"
-            report_entry["message"] = f"Negociación #{deal_id} creada exitosamente{activity_info}."
+            report_entry["message"] = f"Negociación #{deal_id} creada exitosamente en NOTIFICADO."
             SEND_STATE["success_count"] += 1
 
             SEND_STATE["logs"].append({
